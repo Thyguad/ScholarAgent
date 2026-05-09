@@ -1,24 +1,54 @@
 # ScholarAgent
 
-ScholarAgent 是一个面向研究生的科研调研与项目孵化智能体项目。
+ScholarAgent 是一个面向科研新手的科研复现与创新机会评估 Agent 项目。
 
-本项目的目标不是做一个简单的聊天 Demo，而是逐步搭建一个接近真实工程项目的 AI Agent 系统：用户输入一个研究方向后，系统能够自动完成论文检索、GitHub 项目调研、技术路线分析、实验计划生成、报告撰写和过程追踪，帮助科研新手从一个模糊方向走到一个可执行的项目方案。
+本项目的目标不是做一个简单的聊天 Demo，也不是再造一个通用深度研究工具，而是逐步搭建一个接近真实工程项目的 AI Agent 系统：用户输入一个研究方向后，系统能够检索论文、调研 GitHub 项目、构建论文-代码-证据图谱、评估复现可行性、验证报告结论并挖掘可执行创新机会，帮助科研新手从模糊方向走到可复现、可改进、可展示的项目方案。
 
 这个仓库会以“边学边做”的方式推进。每个阶段都应该有清晰的学习目标、可运行代码和可验证结果，避免一次性堆出一个看不懂的成品。
 
-## 项目目标
+完整项目方案见：[docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md)。
+当前接手进度见：[docs/PROGRESS.md](docs/PROGRESS.md)。
+关键决策记录见：[docs/DECISIONS.md](docs/DECISIONS.md)。
 
-ScholarAgent 希望最终支持以下能力：
+## 项目定位
 
-1. 输入一个研究主题，例如 `LLM Agent for Software Engineering`。
-2. 自动检索相关论文，包括 arXiv、Semantic Scholar 等来源。
-3. 自动调研相关 GitHub 项目，包括 star、活跃度、技术栈、README、issue 情况等。
-4. 对论文和开源项目进行交叉分析，生成技术路线图。
-5. 给出适合研究生入门的学习路径、复现计划和可选创新点。
-6. 生成带引用来源的 Markdown / PDF 调研报告。
-7. 记录 Agent 的执行过程，包括调用了什么工具、得到了什么观察结果、为什么进入下一步。
-8. 支持人工审核和修改关键步骤，降低幻觉和错误引用。
-9. 最终形成一个可以用于实习展示的完整 AI Agent 工程项目。
+ScholarAgent 的最终定位是：
+
+> 面向科研新手的科研复现与创新机会评估 Agent。
+
+它重点回答以下问题：
+
+1. 一个研究方向有哪些关键论文？
+2. 哪些论文有可用代码？
+3. 论文中的方法、实验和代码实现是否能对上？
+4. 哪些项目最适合科研新手复现？
+5. 报告中的关键结论分别来自哪些证据？
+6. 如果要做一个研究生项目，应该从哪里切入？
+7. 系统为什么推荐这个项目，而不是另一个项目？
+
+## 核心创新点
+
+ScholarAgent 的核心不是“多 Agent”本身，而是一条可信的科研决策链路：
+
+```text
+论文是否重要
+  -> 代码是否存在
+  -> 证据图谱是否完整
+  -> 实验是否能复现
+  -> 结论是否有证据
+  -> 系统评估是否可靠
+  -> 新手是否值得做
+  -> 可以从哪个创新点切入
+```
+
+项目最终希望形成以下能力：
+
+- Evidence Graph：把 paper、claim、method、repo、code_file、experiment、evidence 建模成可查询证据图谱。
+- Paper-Code Alignment：判断论文方法、数据集、实验指标和 GitHub 代码实现是否能对齐。
+- Reproducibility Scoring：基于代码完整度、依赖复杂度、数据可获得性、硬件成本和维护活跃度评估复现风险。
+- Evidence RAG：不是做普通问答 RAG，而是为 claim verification 和 paper-code alignment 检索证据候选。
+- Multi-Agent Verification：用不同 Agent 分别收集论文证据、代码证据、复现风险和引用验证结果。
+- Reproducibility Benchmark：用人工标注的 paper-repo pair 评估系统质量。
 
 ## 核心理念
 
@@ -26,58 +56,55 @@ ScholarAgent 希望最终支持以下能力：
 
 - 可学习：每一步都要能解释清楚为什么这样设计。
 - 可运行：每个阶段都要留下能跑通的小成果。
-- 可追踪：Agent 的关键决策、工具调用和中间结果要能被记录。
-- 可评估：不能只看生成结果是否“像样”，还要评估引用准确性、检索覆盖率和报告可靠性。
-- 可扩展：后续可以加入更多数据源、工具、模型和 Agent 工作流。
+- 可追踪：Agent 的关键工具调用、观察结果和中间产物要能被记录。
+- 可验证：重要结论要能追溯到论文、代码、README、issue 或工具观察证据。
+- 可评估：不能只看生成结果是否“像样”，还要评估引用准确性、repo 匹配准确性和复现评分质量。
+- 可扩展：后续可以加入更多数据源、Evidence RAG、多 Agent 验证和前端可视化。
 
-## 技术选型
+## 技术路线摘要
 
-当前计划采用以下技术栈：
+详细技术路线和阶段规划以 [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) 为准。
 
-| 模块 | 技术 | 作用 |
-| --- | --- | --- |
-| 后端服务 | FastAPI | 提供 API、任务创建、运行状态查询和前后端通信 |
-| Agent 编排 | LangGraph | 管理长流程、多步骤、可恢复的 Agent 工作流 |
-| Agent 范式 | ReAct | 在具体节点内部实现“推理 -> 调用工具 -> 观察 -> 继续推理”的循环 |
-| 数据模型 | Pydantic | 约束请求、响应和 Agent 结构化输出 |
-| 论文检索 | arXiv API、Semantic Scholar API | 获取论文元数据、摘要、引用信息 |
-| GitHub 调研 | GitHub REST / GraphQL API、GitHub MCP | 获取仓库信息、README、活跃度和项目指标 |
-| 浏览器自动化 | browser-use / Playwright | 处理普通 API 难以覆盖的网页调研任务 |
-| 向量检索 | Qdrant | 存储论文、README、网页材料的向量索引 |
-| 数据库 | PostgreSQL | 保存项目、任务、论文、仓库、报告和运行记录 |
-| 缓存 / 队列 | Redis、Celery 或 RQ | 支持长任务、异步执行和状态缓存 |
-| 前端界面 | Next.js、React、TypeScript | 构建研究任务面板、Agent trace、报告编辑和可视化界面 |
-| UI 组件 | Tailwind CSS、shadcn/ui、React Flow | 快速搭建现代化界面和工作流图 |
-| 评估 | DeepEval、自定义指标 | 评估报告事实性、引用准确性和 Agent 任务完成质量 |
-| 部署 | Docker Compose | 本地一键启动后端、前端、数据库和向量库 |
+当前方向大致包括：
 
-## Agent 设计
-
-项目中会逐步实现多个 Agent 或工作流节点：
-
-| 名称 | 职责 |
+| 模块 | 作用 |
 | --- | --- |
-| Planner Agent | 拆解用户输入的研究主题，生成调研计划 |
-| Paper Search Agent | 检索论文、筛选论文、提取论文关键信息 |
-| GitHub Research Agent | 检索和分析开源项目，评估项目质量与可复现性 |
-| RAG Builder Agent | 将论文、README、网页内容构建为可检索知识库 |
-| Critic / Verifier Agent | 检查引用、事实一致性和报告中的潜在幻觉 |
-| Report Writer Agent | 生成结构化科研调研报告和项目路线图 |
+| FastAPI 后端 | 提供任务创建、状态查询和接口服务 |
+| Pydantic 数据模型 | 约束论文、仓库、claim、evidence、trace 等结构化数据 |
+| 论文检索工具 | 获取 arXiv、Semantic Scholar 等论文信息 |
+| GitHub 调研工具 | 获取 repo、README、文件结构、issue 和活跃度信号 |
+| Evidence Graph | 保存论文、代码、证据、claim 和复现评分之间的关系 |
+| LangGraph 工作流 | 管理长流程、状态、节点输出、人工审核和可恢复执行 |
+| Evidence RAG | 为 claim verification 和 paper-code alignment 检索证据 |
+| 前端可视化 | 展示任务、证据图谱、对齐矩阵、复现评分、trace 和报告 |
+| 评估模块 | 评估 repo 匹配、证据命中、引用准确性和复现评分质量 |
 
-整体工作流由 LangGraph 管理，单个节点内部可以使用 ReAct 模式完成动态工具调用。
+## Agent 设计原则
 
-示意流程：
+ScholarAgent 不采用“一个大 Agent 拿一堆工具循环到结束”的方式。
+
+本项目更强调：
+
+1. 确定性流程优先。
+2. 结构化数据优先。
+3. Evidence Graph 优先。
+4. 小 Agent 优先。
+5. 多 Agent 用于交叉验证，不用于堆概念。
+6. 关键步骤可验证。
+7. 所有重要结论都要有证据。
+
+最终多 Agent 形态包括：
 
 ```text
-User Topic
-  -> Planner Agent
-  -> Paper Search Agent
-  -> GitHub Research Agent
-  -> Synthesis
-  -> Critic / Verifier Agent
-  -> Report Writer Agent
-  -> Final Report
+Planner
+  -> Paper Evidence Agent
+  -> Code Evidence Agent
+  -> Reproducibility Auditor
+  -> Citation Verifier
+  -> Mentor Report Writer
 ```
+
+其中 Writer 只能基于已验证 evidence 生成报告，Verifier 可以标记或驳回 unsupported claim。
 
 ## 计划目录结构
 
@@ -103,151 +130,26 @@ ScholarAgent/
     lib/
     package.json
   docs/
+    PROJECT_PLAN.md
+    PROGRESS.md
+    DECISIONS.md
     architecture.md
     learning-notes.md
   docker-compose.yml
+  AGENTS.md
+  CLAUDE.md
   README.md
 ```
 
 说明：
 
-- `backend/app/agents/`：放 LangGraph 工作流和具体 Agent 逻辑。
+- `backend/app/agents/`：放 LangGraph 工作流和具体 Agent 节点逻辑。
 - `backend/app/tools/`：放论文搜索、GitHub 搜索、网页浏览、PDF 解析等工具。
-- `backend/app/models/`：放 Pydantic 模型和数据库模型。
-- `backend/app/services/`：放业务服务，例如任务管理、报告生成、评估服务。
+- `backend/app/models/`：放 Pydantic 模型和后续数据库模型。
+- `backend/app/services/`：放任务管理、报告生成、评分和验证服务。
+- `backend/app/storage/`：放 Evidence Graph、缓存和持久化相关逻辑。
 - `frontend/`：放 Next.js / React 前端。
-- `docs/`：记录架构设计、学习笔记、阶段总结，方便后续交接。
-
-## 阶段路线
-
-### 阶段 0：项目准备
-
-目标：
-
-- 初始化仓库。
-- 明确项目方向、技术栈和 README。
-- 准备 GitHub 远程仓库和 MCP 配置。
-
-当前状态：
-
-- 本地仓库已初始化。
-- GitHub 仓库已创建。
-- README 正在完善。
-
-### 阶段 1：最小 FastAPI 后端
-
-目标：
-
-- 创建 `backend/`。
-- 配置 Python 项目。
-- 实现 `/health` 接口。
-- 实现一个接收研究主题的接口，例如 `POST /research/topics`。
-
-学习重点：
-
-- Python 项目结构。
-- FastAPI 基础。
-- Pydantic 请求和响应模型。
-- 本地运行与接口测试。
-
-### 阶段 2：第一个论文搜索工具
-
-目标：
-
-- 接入 arXiv API 或 Semantic Scholar API。
-- 输入关键词，返回结构化论文列表。
-- 将搜索工具封装成 Agent 可调用的 tool。
-
-学习重点：
-
-- API 调用。
-- 工具封装。
-- 结构化数据建模。
-
-### 阶段 3：第一个 ReAct Agent
-
-目标：
-
-- 构建一个能调用论文搜索工具的最小 ReAct Agent。
-- 让 Agent 根据用户主题搜索论文并生成简短总结。
-
-学习重点：
-
-- ReAct 的 Thought / Action / Observation 模式。
-- Tool calling。
-- 如何限制 Agent 输出格式。
-
-### 阶段 4：LangGraph 工作流
-
-目标：
-
-- 使用 LangGraph 串联 Planner、Paper Search 和 Report Writer。
-- 保存每一步的状态。
-- 为后续 human-in-the-loop 和断点恢复打基础。
-
-学习重点：
-
-- 状态图。
-- 节点。
-- 边。
-- checkpoint。
-- 可观测的 Agent 执行流程。
-
-### 阶段 5：数据存储和任务系统
-
-目标：
-
-- 引入数据库保存研究主题、任务运行、论文和报告。
-- 支持查询历史任务和运行状态。
-
-学习重点：
-
-- 数据库建模。
-- 异步任务。
-- 后端服务分层。
-
-### 阶段 6：前端可视化
-
-目标：
-
-- 使用 Next.js / React 构建基础界面。
-- 展示研究任务、论文列表、GitHub 项目列表和 Agent 执行时间线。
-
-学习重点：
-
-- 前后端通信。
-- Agent trace 可视化。
-- React Flow 工作流图。
-
-### 阶段 7：RAG 和知识库
-
-目标：
-
-- 支持上传或抓取论文 PDF。
-- 对论文、README 和网页材料切分、向量化、入库。
-- 支持基于证据的问答和报告生成。
-
-学习重点：
-
-- Embedding。
-- 向量数据库。
-- RAG。
-- 引用溯源。
-
-### 阶段 8：成熟化和作品包装
-
-目标：
-
-- 加入评估模块。
-- 加入 Docker Compose。
-- 完善 README、架构图和演示视频。
-- 准备简历项目描述和面试讲解材料。
-
-学习重点：
-
-- LLM 应用评估。
-- 工程化部署。
-- 项目展示和技术表达。
+- `docs/`：记录最终方案、当前进度、关键决策、架构设计、学习笔记和阶段总结。
 
 ## 当前交接状态
 
@@ -256,21 +158,24 @@ ScholarAgent/
 - 项目目录：`/Users/xuhaoquan/project/ScholarAgent`
 - GitHub 仓库：`https://github.com/Thyguad/ScholarAgent`
 - 当前分支：`main`
-- 最近提交：请使用 `git log --oneline -1` 查看
 - 项目还没有开始写业务代码。
+- 已确定最终项目方案：[docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md)
+- 当前进度记录：[docs/PROGRESS.md](docs/PROGRESS.md)
+- 关键决策记录：[docs/DECISIONS.md](docs/DECISIONS.md)
 - 下一步建议从“阶段 1：最小 FastAPI 后端”开始。
 
 ## 协作约定
 
 这个项目的主要学习方式是：先理解，再实现，再验证。
 
-每次新增功能时，应尽量遵循以下流程：
+用户是初学者，每次新增功能时，应尽量遵循以下流程：
 
 1. 先说明这一小步要解决什么问题。
 2. 再说明需要新增或修改哪些文件。
 3. 编写尽量少但工程风格正确的代码。
-4. 运行测试或本地服务验证结果。
-5. 总结这一阶段学到了什么。
-6. 提交到 git，保持仓库历史清晰。
+4. 写代码时为关键逻辑添加中文注释，方便初学者理解。
+5. 运行测试、本地服务或命令验证结果。
+6. 总结这一阶段学到了什么。
+7. 在用户同意后再提交 git，保持仓库历史清晰。
 
-如果后续由另一个 AI 或开发者接手，请优先阅读本 README，并从“当前交接状态”和“阶段路线”继续推进，不要直接跳到复杂功能。
+如果后续由另一个 AI 或开发者接手，请优先阅读 `AGENTS.md`、[docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) 和 [docs/PROGRESS.md](docs/PROGRESS.md)，不要直接跳到复杂功能。
