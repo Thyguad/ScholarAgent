@@ -2,8 +2,10 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
 
+from app.models.evidence_graph import EvidenceGraph
 from app.models.paper import Paper
 from app.models.research_task import ResearchTaskCreate, ResearchTaskResponse
+from app.services.graph_builder import build_evidence_graph
 from app.tools.paper_search import PaperSearchError, search_papers_across_sources
 
 
@@ -36,18 +38,23 @@ def create_research_task(payload: ResearchTaskCreate) -> ResearchTaskResponse:
     )
 
 
-@app.get("/papers/search", response_model=list[Paper])
+@app.get("/papers/search")
 def search_papers(
     query: str = Query(min_length=2, max_length=200, description="论文搜索关键词。"),
     max_results: int = Query(default=5, ge=1, le=10, description="最多返回论文数量。"),
-) -> list[Paper]:
-    """搜索真实论文。
+    include_graph: bool = Query(default=False, description="是否返回证据图谱。"),
+) -> list[Paper] | EvidenceGraph:
+    """搜索真实论文，可选择附带证据图谱。
 
-    API 层只负责参数校验和错误转换；真正的数据源调用放在工具层。
-    当前优先使用 OpenAlex，arXiv 作为备用来源。
+    默认只返回论文列表（向后兼容）。
+    传入 include_graph=true 时返回 EvidenceGraph，包含论文列表和证据节点，
+    每条证据都可以通过 source_paper_id 追溯到原始论文。
     """
     try:
-        return search_papers_across_sources(query=query, max_results=max_results)
+        papers = search_papers_across_sources(query=query, max_results=max_results)
     except PaperSearchError as exc:
-        # 外部 API 失败时返回 503，表示服务暂时不可用，调用方稍后可以重试。
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if include_graph:
+        return build_evidence_graph(papers)
+    return papers

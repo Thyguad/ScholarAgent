@@ -2,7 +2,9 @@ from fastapi.testclient import TestClient
 
 import app.main as main_module
 from app.main import app
+from app.models.evidence_graph import EvidenceGraph
 from app.models.paper import Paper
+from app.services.graph_builder import build_evidence_graph
 from app.tools.paper_search import PaperSearchError
 
 
@@ -68,6 +70,47 @@ def test_search_papers_returns_paper_results(monkeypatch) -> None:
     data = response.json()
     assert data[0]["source"] == "openalex"
     assert data[0]["title"] == "A Survey of LLM Agents"
+
+
+def test_search_papers_with_include_graph_returns_evidence_graph(monkeypatch) -> None:
+    """传入 include_graph=true 时应返回 EvidenceGraph 结构，而非纯论文列表。"""
+
+    def fake_search_papers_across_sources(query: str, max_results: int) -> list[Paper]:
+        return [
+            Paper(
+                source="openalex",
+                source_id="W123",
+                title="Test Paper",
+                authors=["Alice"],
+                summary="A summary.",
+                published_at="2024-01-01",
+                source_url="https://example.org/W123",
+                pdf_url=None,
+            )
+        ]
+
+    monkeypatch.setattr(
+        main_module,
+        "search_papers_across_sources",
+        fake_search_papers_across_sources,
+    )
+
+    response = client.get(
+        "/papers/search",
+        params={"query": "test", "max_results": 1, "include_graph": True},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # EvidenceGraph 应有 papers 和 evidence_nodes 两个字段
+    assert "papers" in data
+    assert "evidence_nodes" in data
+    assert len(data["papers"]) == 1
+    # 每篇论文 4 条 evidence
+    assert len(data["evidence_nodes"]) == 4
+    # 每条 evidence 应该有 id 和 source_paper_id
+    for ev in data["evidence_nodes"]:
+        assert ev["source_paper_id"] == "W123"
 
 
 def test_search_papers_converts_search_error_to_503(monkeypatch) -> None:
