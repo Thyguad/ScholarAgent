@@ -168,6 +168,22 @@ ScholarAgent/
 
 当前后端位于 `backend/`。
 
+首次运行前，先配置本地环境变量：
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+然后打开 `backend/.env`，填写你的 OpenAlex API key：
+
+```bash
+OPENALEX_API_KEY=你的 OpenAlex API key
+OPENALEX_MAILTO=你的邮箱
+```
+
+`backend/.env` 不会提交到 Git。
+
 安装依赖后，可以这样运行测试：
 
 ```bash
@@ -196,6 +212,14 @@ curl -i -X POST http://127.0.0.1:8000/research/tasks \
   -H 'Content-Type: application/json' \
   -d '{"topic":"LLM Agent for Software Engineering"}'
 ```
+
+搜索论文：
+
+```bash
+curl -i 'http://127.0.0.1:8000/papers/search?query=LLM%20Agent&max_results=5'
+```
+
+说明：`/papers/search` 会优先调用 OpenAlex。若 OpenAlex 不可用，再尝试 arXiv 兜底。
 
 ## 协作约定
 

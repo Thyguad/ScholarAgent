@@ -1,6 +1,12 @@
 import httpx
+import pytest
 
-from app.tools.arxiv_search import parse_arxiv_feed, search_arxiv_papers
+from app.tools import arxiv_search
+from app.tools.arxiv_search import (
+    ArxivSearchError,
+    parse_arxiv_feed,
+    search_arxiv_papers,
+)
 
 
 SAMPLE_ARXIV_FEED = """<?xml version="1.0" encoding="UTF-8"?>
@@ -47,6 +53,7 @@ def test_search_arxiv_papers_calls_arxiv_api(monkeypatch) -> None:
     captured_request: dict[str, object] = {}
 
     class FakeResponse:
+        status_code = 200
         text = SAMPLE_ARXIV_FEED
 
         def raise_for_status(self) -> None:
@@ -58,18 +65,20 @@ def test_search_arxiv_papers_calls_arxiv_api(monkeypatch) -> None:
         params: dict[str, object],
         timeout: int,
         headers: dict[str, str],
+        follow_redirects: bool,
         trust_env: bool,
     ) -> FakeResponse:
         captured_request["url"] = url
         captured_request["params"] = params
         captured_request["timeout"] = timeout
         captured_request["headers"] = headers
+        captured_request["follow_redirects"] = follow_redirects
         captured_request["trust_env"] = trust_env
         return FakeResponse()
 
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    papers = search_arxiv_papers("LLM Agent", max_results=20)
+    papers = search_arxiv_papers("  LLM   Agent  ", max_results=20)
 
     assert len(papers) == 1
     assert captured_request["url"] == "https://export.arxiv.org/api/query"
@@ -81,5 +90,100 @@ def test_search_arxiv_papers_calls_arxiv_api(monkeypatch) -> None:
         "sortOrder": "descending",
     }
     assert captured_request["timeout"] == 20
-    assert captured_request["headers"] == {"User-Agent": "ScholarAgent/0.1"}
+    assert captured_request["headers"] == {
+        "User-Agent": "ScholarAgent/0.1 (https://github.com/Thyguad/ScholarAgent)"
+    }
+    assert captured_request["follow_redirects"] is True
     assert captured_request["trust_env"] is False
+
+
+def test_search_arxiv_papers_retries_rate_limited_response(monkeypatch) -> None:
+    requests: list[int] = []
+    sleeps: list[float] = []
+
+    class FakeResponse:
+        def __init__(self, status_code: int) -> None:
+            self.status_code = status_code
+            self.text = SAMPLE_ARXIV_FEED
+            self.headers: dict[str, str] = {}
+
+        def raise_for_status(self) -> None:
+            if self.status_code >= 400:
+                raise httpx.HTTPStatusError(
+                    "request failed",
+                    request=httpx.Request("GET", "https://export.arxiv.org/api/query"),
+                    response=httpx.Response(self.status_code),
+                )
+
+    def fake_get(*args: object, **kwargs: object) -> FakeResponse:
+        requests.append(1)
+        if len(requests) == 1:
+            return FakeResponse(429)
+        return FakeResponse(200)
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(arxiv_search.time, "sleep", fake_sleep)
+
+    papers = search_arxiv_papers("LLM Agent", retries=2, retry_delay_seconds=3.0)
+
+    assert len(papers) == 1
+    assert len(requests) == 2
+    assert sleeps == [3.0]
+
+
+def test_search_arxiv_papers_respects_retry_after_header(monkeypatch) -> None:
+    requests: list[int] = []
+    sleeps: list[float] = []
+
+    class FakeResponse:
+        def __init__(self, status_code: int, retry_after: str | None = None) -> None:
+            self.status_code = status_code
+            self.text = SAMPLE_ARXIV_FEED
+            self.headers = {}
+            if retry_after is not None:
+                self.headers["Retry-After"] = retry_after
+
+        def raise_for_status(self) -> None:
+            return None
+
+    def fake_get(*args: object, **kwargs: object) -> FakeResponse:
+        requests.append(1)
+        if len(requests) == 1:
+            return FakeResponse(429, retry_after="7")
+        return FakeResponse(200)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(arxiv_search.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    papers = search_arxiv_papers("LLM Agent", retries=2, retry_delay_seconds=3.0)
+
+    assert len(papers) == 1
+    assert sleeps == [7.0]
+
+
+def test_search_arxiv_papers_raises_after_retry_exhaustion(monkeypatch) -> None:
+    class FakeResponse:
+        status_code = 503
+        text = "Service unavailable"
+        headers: dict[str, str] = {}
+
+        def raise_for_status(self) -> None:
+            raise httpx.HTTPStatusError(
+                "request failed",
+                request=httpx.Request("GET", "https://export.arxiv.org/api/query"),
+                response=httpx.Response(503),
+            )
+
+    monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr(arxiv_search.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(ArxivSearchError):
+        search_arxiv_papers("LLM Agent", retries=1, retry_delay_seconds=0)
+
+
+def test_search_arxiv_papers_requires_query() -> None:
+    with pytest.raises(ValueError):
+        search_arxiv_papers("   ")
