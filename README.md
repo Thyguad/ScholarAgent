@@ -158,11 +158,44 @@ ScholarAgent/
 - 项目目录：`/Users/xuhaoquan/project/ScholarAgent`
 - GitHub 仓库：`https://github.com/Thyguad/ScholarAgent`
 - 当前分支：`main`
-- 项目还没有开始写业务代码。
+- 阶段 1 最小 FastAPI 后端已完成。
 - 已确定最终项目方案：[docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md)
 - 当前进度记录：[docs/PROGRESS.md](docs/PROGRESS.md)
 - 关键决策记录：[docs/DECISIONS.md](docs/DECISIONS.md)
-- 下一步建议从“阶段 1：最小 FastAPI 后端”开始。
+- 下一步建议从“阶段 2：论文搜索 MVP”开始。
+
+## 本地运行后端
+
+当前后端位于 `backend/`。
+
+安装依赖后，可以这样运行测试：
+
+```bash
+cd backend
+uv sync --extra dev
+uv run pytest
+```
+
+启动本地服务：
+
+```bash
+cd backend
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+验证健康检查：
+
+```bash
+curl -i http://127.0.0.1:8000/health
+```
+
+提交一个最小研究任务：
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/research/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"topic":"LLM Agent for Software Engineering"}'
+```
 
 ## 协作约定
 
