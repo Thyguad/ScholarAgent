@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Query
 from app.models.evidence_graph import EvidenceGraph
 from app.models.paper import Paper
 from app.models.research_task import ResearchTaskCreate, ResearchTaskResponse
+from app.services.claim_extractor import ClaimExtractionError, enrich_graph_with_claims
 from app.services.graph_builder import build_evidence_graph
 from app.tools.paper_search import PaperSearchError, search_papers_across_sources
 
@@ -43,18 +44,30 @@ def search_papers(
     query: str = Query(min_length=2, max_length=200, description="论文搜索关键词。"),
     max_results: int = Query(default=5, ge=1, le=10, description="最多返回论文数量。"),
     include_graph: bool = Query(default=False, description="是否返回证据图谱。"),
+    include_claims: bool = Query(default=False, description="是否抽取并返回 claim 节点。"),
 ) -> list[Paper] | EvidenceGraph:
-    """搜索真实论文，可选择附带证据图谱。
+    """搜索真实论文，可选择附带证据图谱和 LLM 抽取的 claim。
 
     默认只返回论文列表（向后兼容）。
-    传入 include_graph=true 时返回 EvidenceGraph，包含论文列表和证据节点，
-    每条证据都可以通过 source_paper_id 追溯到原始论文。
+    传入 include_graph=true 返回包含 evidence_nodes 的 EvidenceGraph。
+    传入 include_claims=true 时自动返回 EvidenceGraph，并追加 claim_nodes。
+    PaperSearchError 和 ClaimExtractionError 都会转换为 503。
     """
     try:
         papers = search_papers_across_sources(query=query, max_results=max_results)
     except PaperSearchError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if include_graph:
-        return build_evidence_graph(papers)
+    # include_claims 或 include_graph 任一为 true 时都返回 EvidenceGraph
+    if include_graph or include_claims:
+        graph = build_evidence_graph(papers)
+
+        if include_claims:
+            try:
+                graph = enrich_graph_with_claims(graph)
+            except ClaimExtractionError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        return graph
+
     return papers

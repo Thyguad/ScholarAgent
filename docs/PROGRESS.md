@@ -13,8 +13,8 @@
 
 - 最后更新：2026-05-12
 - 当前分支：`main`
-- 当前阶段：阶段 3（简版 Evidence Graph）开发中，核心代码和测试已完成
-- 当前状态：已有最小后端入口、研究任务提交接口、统一论文模型、OpenAlex + arXiv 多源论文搜索、Evidence/EvidenceGraph 数据模型、graph_builder 服务、/papers/search 支持可选的证据图谱返回。26 个测试全部通过。
+- 当前阶段：阶段 4 第一小步（LLM Claim Extraction）已完成
+- 当前状态：已有 FastAPI 后端、论文搜索、EvidenceGraph、LLM claim 抽取、Claim 模型。46 个测试全部通过。真实 LLM（DeepSeek）端到端验证通过。
 - 项目定位：面向科研新手的科研复现与创新机会评估 Agent
 - 详细方案来源：`docs/PROJECT_PLAN.md`
 
@@ -61,6 +61,27 @@
 - 26 个测试全部通过。
 - 新增 `docs/DECISIONS.md` D011：记录阶段 3 最小 Pydantic 模型决策。
 
+**阶段 4 第一小步（LLM Claim Extraction）：**
+- 新增 Claim 模型（`backend/app/models/evidence_graph.py`），EvidenceGraph 添加 claim_nodes 字段。
+- 新增 LLM 配置项（`backend/app/core/config.py`），支持任一 OpenAI-compatible API。
+- 更新 `backend/.env.example`，新增 LLM 配置示例。
+- 新增 `backend/app/services/claim_extractor.py`，实现 LLM claim 抽取服务。
+  - 使用 httpx 调 OpenAI-compatible Chat Completions API。
+  - evidence_ids 由代码绑定（title + summary），不让 LLM 猜内部 ID。
+  - 支持 Markdown 代码块剥离、confidence 裁剪、空文本过滤。
+- 修改 `backend/app/main.py`，`/papers/search` 新增 include_claims 参数。
+- 新增 `backend/tests/test_claim_extractor.py`（15 个测试），覆盖抽取、错误处理、边界值。
+- 更新 `backend/tests/test_main.py`（4 个 API 层测试），覆盖 include_claims 各场景。
+- 46 个测试全部通过。
+- 新增 `docs/DECISIONS.md` D012：记录第一版 claim 抽取设计决策。
+- 修复：enrich_graph_with_claims 改为 fail-fast，LLM 抽取失败不再吞异常。
+- 修复：extract_claims_for_paper 在调 LLM 前校验 title/summary evidence 是否真实存在。
+- 新增 `docs/DECISIONS.md` D013：记录 fail-fast 策略和 evidence 校验决策。
+- 真实 DeepSeek API 端到端验证通过：10 篇论文 → 30 条 claim，每条可溯源。
+
+**Git 提交记录（阶段 3）：**
+- `df04551` feat: add minimal Evidence Graph with traceable evidence nodes
+
 **Git 提交记录（阶段 2）：**
 - `ca941c3` feat: add multi-source paper search
 - `7077ad5` feat: add backend scaffold and arxiv search
@@ -69,17 +90,15 @@
 - 没有接入 Semantic Scholar。
 - 没有接入 Crossref。
 - 没有持久化保存研究任务。
-- 没有接入 LLM 做 claim 抽取（阶段 4 目标）。
-- 没有实现 EvidenceGraph 的 claim 节点（数据模型已预留）。
+- 没有做 PDF 正文解析（claim 只基于 title + summary）。
 - 没有引入 LangGraph、多 Agent、数据库、RAG 或前端。
-- 没有 push 到远端（本地领先 origin 2 个 commit）。
-- 没有提交阶段 3 代码，等待用户确认。
+- 没有 push 到远端（本地领先 origin 4 个 commit）。
 
 ## 下一步建议
 
-阶段 3 核心代码已完成。当前版本的 EvidenceGraph 包含 paper + evidence 两类节点，每条 evidence 可通过 source_paper_id 追溯原始论文。
+阶段 4 第一小步完成——LLM 从每篇论文的 title + summary 中抽取 1-3 条关键 claim，绑定到对应 evidence，真实 DeepSeek API 验证通过。
 
-建议确认后提交 git，然后进入阶段 4：基础 Evidence Report——基于 EvidenceGraph 生成首个带来源的 Markdown 报告，每个小结都绑定 evidence 节点。
+下一小步是阶段 4 第二小步：基础 Evidence Report——基于 EvidenceGraph + claim_nodes 生成首个带来源的 Markdown 报告。
 
 ## 最近验证记录
 

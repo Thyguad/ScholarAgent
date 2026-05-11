@@ -18,6 +18,14 @@ class Settings(BaseModel):
     openalex_api_key: str | None = None
     openalex_mailto: str | None = None
 
+    # LLM 配置：接入任一 OpenAI-compatible API（DeepSeek、OpenAI 等）。
+    llm_provider: str = "deepseek"
+    llm_api_key: str | None = None
+    llm_base_url: str = "https://api.deepseek.com"
+    llm_model: str = "deepseek-chat"
+    llm_timeout_seconds: float = 30
+    llm_max_claims_per_paper: int = 3
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -29,7 +37,27 @@ def get_settings() -> Settings:
     return Settings(
         openalex_api_key=os.getenv("OPENALEX_API_KEY") or env_values.get("OPENALEX_API_KEY"),
         openalex_mailto=os.getenv("OPENALEX_MAILTO") or env_values.get("OPENALEX_MAILTO"),
+        llm_provider=os.getenv("LLM_PROVIDER") or env_values.get("LLM_PROVIDER", "deepseek"),
+        llm_api_key=os.getenv("LLM_API_KEY") or env_values.get("LLM_API_KEY"),
+        llm_base_url=os.getenv("LLM_BASE_URL") or env_values.get("LLM_BASE_URL", "https://api.deepseek.com"),
+        llm_model=os.getenv("LLM_MODEL") or env_values.get("LLM_MODEL", "deepseek-chat"),
+        llm_timeout_seconds=_parse_float(os.getenv("LLM_TIMEOUT_SECONDS") or env_values.get("LLM_TIMEOUT_SECONDS", "30")),
+        llm_max_claims_per_paper=_parse_int(os.getenv("LLM_MAX_CLAIMS_PER_PAPER") or env_values.get("LLM_MAX_CLAIMS_PER_PAPER", "3")),
     )
+
+
+def _parse_float(value: str) -> float:
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return 30.0
+
+
+def _parse_int(value: str) -> int:
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return 3
 
 
 def _load_env_file(path: Path) -> dict[str, str]:

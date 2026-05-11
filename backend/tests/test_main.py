@@ -2,9 +2,9 @@ from fastapi.testclient import TestClient
 
 import app.main as main_module
 from app.main import app
-from app.models.evidence_graph import EvidenceGraph
+from app.models.evidence_graph import Claim, EvidenceGraph
 from app.models.paper import Paper
-from app.services.graph_builder import build_evidence_graph
+from app.services.claim_extractor import ClaimExtractionError
 from app.tools.paper_search import PaperSearchError
 
 
@@ -111,6 +111,136 @@ def test_search_papers_with_include_graph_returns_evidence_graph(monkeypatch) ->
     # 每条 evidence 应该有 id 和 source_paper_id
     for ev in data["evidence_nodes"]:
         assert ev["source_paper_id"] == "W123"
+
+
+def test_search_papers_with_include_claims_returns_claim_nodes(monkeypatch) -> None:
+    """include_claims=true 时应返回包含 claim_nodes 的 EvidenceGraph。"""
+
+    def fake_search_papers_across_sources(query: str, max_results: int) -> list[Paper]:
+        return [
+            Paper(
+                source="openalex",
+                source_id="W123",
+                title="Test Paper",
+                authors=["Alice"],
+                summary="A summary.",
+                published_at="2024-01-01",
+                source_url="https://example.org/W123",
+                pdf_url=None,
+            )
+        ]
+
+    monkeypatch.setattr(main_module, "search_papers_across_sources", fake_search_papers_across_sources)
+
+    def fake_enrich(graph: EvidenceGraph) -> EvidenceGraph:
+        graph.claim_nodes = [
+            Claim(
+                id="claim_W123_1",
+                source_paper_id="W123",
+                text="A test claim.",
+                evidence_ids=["ev_W123_title", "ev_W123_summary"],
+                confidence=0.9,
+            )
+        ]
+        return graph
+
+    monkeypatch.setattr(main_module, "enrich_graph_with_claims", fake_enrich)
+
+    response = client.get(
+        "/papers/search",
+        params={"query": "test", "max_results": 1, "include_claims": True},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "claim_nodes" in data
+    assert len(data["claim_nodes"]) == 1
+    assert data["claim_nodes"][0]["text"] == "A test claim."
+
+
+def test_include_claims_auto_returns_evidence_graph_even_without_include_graph(monkeypatch) -> None:
+    """include_claims=true 时，即使 include_graph=false，也应返回 EvidenceGraph。"""
+
+    def fake_search(query: str, max_results: int) -> list[Paper]:
+        return [
+            Paper(
+                source="openalex", source_id="W123", title="T", authors=["A"],
+                summary="S.", published_at="2024-01-01",
+                source_url="https://e.org/W123", pdf_url=None,
+            )
+        ]
+
+    monkeypatch.setattr(main_module, "search_papers_across_sources", fake_search)
+
+    def fake_enrich(graph: EvidenceGraph) -> EvidenceGraph:
+        return graph
+
+    monkeypatch.setattr(main_module, "enrich_graph_with_claims", fake_enrich)
+
+    response = client.get(
+        "/papers/search",
+        params={"query": "test", "max_results": 1, "include_claims": True},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # 应返回 EvidenceGraph，有 papers 和 evidence_nodes 字段
+    assert "papers" in data
+    assert "evidence_nodes" in data
+
+
+def test_include_claims_false_returns_plain_paper_list(monkeypatch) -> None:
+    """include_claims=false 时保持旧行为：返回纯论文列表。"""
+
+    def fake_search(query: str, max_results: int) -> list[Paper]:
+        return [
+            Paper(
+                source="openalex", source_id="W123", title="T", authors=["A"],
+                summary="S.", published_at="2024-01-01",
+                source_url="https://e.org/W123", pdf_url=None,
+            )
+        ]
+
+    monkeypatch.setattr(main_module, "search_papers_across_sources", fake_search)
+
+    response = client.get(
+        "/papers/search",
+        params={"query": "test", "max_results": 1, "include_claims": False},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # 应返回列表而非 EvidenceGraph
+    assert isinstance(data, list)
+    assert data[0]["title"] == "T"
+
+
+def test_claim_extraction_error_converts_to_503(monkeypatch) -> None:
+    """LLM claim 抽取失败时，API 返回 503。"""
+
+    def fake_search(query: str, max_results: int) -> list[Paper]:
+        return [
+            Paper(
+                source="openalex", source_id="W123", title="T", authors=["A"],
+                summary="S.", published_at="2024-01-01",
+                source_url="https://e.org/W123", pdf_url=None,
+            )
+        ]
+
+    monkeypatch.setattr(main_module, "search_papers_across_sources", fake_search)
+
+    def fake_enrich(graph: EvidenceGraph) -> EvidenceGraph:
+        raise ClaimExtractionError("LLM 抽取失败")
+
+    monkeypatch.setattr(main_module, "enrich_graph_with_claims", fake_enrich)
+
+    response = client.get(
+        "/papers/search",
+        params={"query": "test", "max_results": 1, "include_claims": True},
+    )
+
+    assert response.status_code == 503
+    assert "LLM 抽取失败" in response.json()["detail"]
 
 
 def test_search_papers_converts_search_error_to_503(monkeypatch) -> None:
