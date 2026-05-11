@@ -27,3 +27,7 @@ venv/
 data/
 storage/
 logs/
+
+# 运行产物（报告、临时 JSON 等）
+*_output.json
+*_report.md

@@ -1,4 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+# 北京时间（UTC+8）
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 from app.models.evidence_graph import EvidenceGraph
 
@@ -13,7 +16,7 @@ def build_evidence_report(graph: EvidenceGraph, query: str = "") -> str:
 
     # --- 报告头部 ---
     topic = query or "未指定主题"
-    now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(tz=BEIJING_TZ).strftime("%Y-%m-%d %H:%M 北京时间")
     paper_count = len(graph.papers)
     evidence_count = len(graph.evidence_nodes)
     claim_count = len(graph.claim_nodes)
