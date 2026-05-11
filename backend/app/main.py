@@ -1,12 +1,14 @@
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 
 from app.models.evidence_graph import EvidenceGraph
 from app.models.paper import Paper
 from app.models.research_task import ResearchTaskCreate, ResearchTaskResponse
 from app.services.claim_extractor import ClaimExtractionError, enrich_graph_with_claims
 from app.services.graph_builder import build_evidence_graph
+from app.services.report_builder import build_evidence_report
 from app.tools.paper_search import PaperSearchError, search_papers_across_sources
 
 
@@ -71,3 +73,29 @@ def search_papers(
         return graph
 
     return papers
+
+
+@app.get("/papers/report", response_class=PlainTextResponse)
+def generate_research_report(
+    query: str = Query(min_length=2, max_length=200, description="论文搜索关键词。"),
+    max_results: int = Query(default=5, ge=1, le=10, description="最多返回论文数量。"),
+) -> str:
+    """搜索论文并生成含证据来源的 Markdown 研究报告。
+
+    一路完成搜索→证据图谱→claim抽取→报告生成。
+    返回纯文本 Markdown，可直接保存为 .md 文件。
+    每条 claim 都附带 claim_id、source_paper_id 和 evidence_ids。
+    """
+    try:
+        papers = search_papers_across_sources(query=query, max_results=max_results)
+    except PaperSearchError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    graph = build_evidence_graph(papers)
+
+    try:
+        graph = enrich_graph_with_claims(graph)
+    except ClaimExtractionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return build_evidence_report(graph, query=query)

@@ -13,8 +13,8 @@
 
 - 最后更新：2026-05-12
 - 当前分支：`main`
-- 当前阶段：阶段 4 第一小步（LLM Claim Extraction）已完成
-- 当前状态：已有 FastAPI 后端、论文搜索、EvidenceGraph、LLM claim 抽取、Claim 模型。46 个测试全部通过。真实 LLM（DeepSeek）端到端验证通过。
+- 当前阶段：阶段 4 完成——第一条完整闭环已打通
+- 当前状态：FastAPI 后端、论文搜索、EvidenceGraph、LLM claim 抽取、Markdown 报告生成。55 个测试全部通过。真实端到端验证通过（搜索→图谱→claim→报告）。
 - 项目定位：面向科研新手的科研复现与创新机会评估 Agent
 - 详细方案来源：`docs/PROJECT_PLAN.md`
 
@@ -79,6 +79,18 @@
 - 新增 `docs/DECISIONS.md` D013：记录 fail-fast 策略和 evidence 校验决策。
 - 真实 DeepSeek API 端到端验证通过：10 篇论文 → 30 条 claim，每条可溯源。
 
+**阶段 4 第二小步（Evidence Report Builder）：**
+- 新增 `backend/app/services/report_builder.py`，纯规则 Markdown 报告生成，不调用 LLM。
+- 新增 `GET /papers/report` endpoint，一路完成搜索→图谱→claim→报告。
+- 报告中每条 claim 显示 claim_id、source_paper_id、evidence_ids 和置信度。
+- 报告包含论文摘要、证据节点表和完整的溯源链。
+- 新增 `backend/tests/test_report_builder.py`（9 个测试）。
+- 55 个测试全部通过。
+- 真实端到端验证通过：3 篇论文 → 95 行 Markdown 报告。
+
+**Git 提交记录（阶段 4）：**
+- `11c5002` feat: add LLM claim extraction from paper title+summary
+
 **Git 提交记录（阶段 3）：**
 - `df04551` feat: add minimal Evidence Graph with traceable evidence nodes
 
@@ -92,13 +104,13 @@
 - 没有持久化保存研究任务。
 - 没有做 PDF 正文解析（claim 只基于 title + summary）。
 - 没有引入 LangGraph、多 Agent、数据库、RAG 或前端。
-- 没有 push 到远端（本地领先 origin 4 个 commit）。
+- 没有 push 到远端。
 
 ## 下一步建议
 
-阶段 4 第一小步完成——LLM 从每篇论文的 title + summary 中抽取 1-3 条关键 claim，绑定到对应 evidence，真实 DeepSeek API 验证通过。
+阶段 4 完成——第一条完整闭环已打通：搜索论文 → 构建 EvidenceGraph → LLM 抽取 claim → 生成带来源的 Markdown 报告。
 
-下一小步是阶段 4 第二小步：基础 Evidence Report——基于 EvidenceGraph + claim_nodes 生成首个带来源的 Markdown 报告。
+下一步进入阶段 5：GitHub 仓库发现——根据论文标题、作者、链接寻找 GitHub repo，标注 official/likely official/third-party/not found。
 
 ## 最近验证记录
 
